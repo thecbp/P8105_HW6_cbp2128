@@ -67,6 +67,50 @@ coeffs = broom::tidy(baltimore_glm) %>%
 knitr::kable(coeffs)
 ```
 
-From the table, we can see that homicide cases among non-whites are much less likely to be solved compared to cases among white people. The odds ratio is `r round(coeffs$OR[4], 3)` with a p-value of `r coeffs$p.value[4]`, indicating statistically significant difference on a 95% confidence level.
+From the table, we can see that homicide cases among non-whites are much less likely to be solved compared to cases among white people. The adjusted odds ratio is `r round(coeffs$OR[4], 3)` with a p-value of `r coeffs$p.value[4]`, indicating statistically significant difference on a 95% confidence level.
 
-## Applying the regression to the entire dataset
+## All City Regression
+
+The above analysis lays out the groundwork for applying it to all the cities as a whole. From the orignial `clean_homicides` dataset, we'll create a new tibble that also contains the odds ratios and confidence intervals. Since both the estimates are in terms of logarithms, we need to transform both the estimate odds ratio and confidence intervals back.
+
+```{r all-city-logits }
+# Function to apply the logit to all cities
+resolve_logit = function(df) {
+  return(glm(was_resolved ~ victim_age + victim_sex + victim_race, 
+            data = df, family = binomial()))
+}
+
+city_odds = clean_homicides %>% 
+  group_by(city_state) %>% 
+  nest() %>% 
+  mutate(model = map(data, resolve_logit),
+         coeffs = map(model, broom::tidy)) %>% 
+  unnest(coeffs) %>% 
+  filter(term == "victim_racenonwhite") %>% 
+  mutate(OR = exp(estimate),
+         conf.low = exp(estimate - std.error * 1.96),
+         conf.high = exp(estimate + std.error * 1.96)) %>% 
+  select(city_state, OR, conf.low, conf.high)
+```
+
+The above pipeline produces a tidy dataset, complete with the estimated adjusted odds ratios and associated confidence intervals. Now we can plot these and see how it ranges between the cities in the Washington Post dataset. 
+
+```{r all-city-plot }
+ggplot(data = city_odds, aes(x = reorder(city_state, -OR), y = OR,
+                             color = reorder(city_state, -OR))) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +
+  geom_hline(yintercept = 1, alpha = 0.3) +
+  theme(legend.position = "none", 
+        axis.text.x = element_text(angle = 60, hjust = 1),
+        text = element_text(size = 10)) +
+  labs(
+    title = "Adjusted odds ratios for homicide resolution\n comparing non-whites to whites by city-state pairs",
+    x = "City, State",
+    y = "Adjusted odds ratios"
+  )
+```
+
+With the exception of Tampa, Durham and Birmingham, most of the cities in the dataset have point estimates for adjusted odds ratios less than 1. In fact, the cities with the largest adjusted odds ratios seem to have the largest confidence intervals, suggestive of relatively small presence in `clean_homcides`. Any adjusted odds ratio under 1 implies that less homicides are solved for non-whites compared to whites.
+
+The odds ratios are sorted in descending order for easier visual comparison. The 95% confidence intervals show that not as many of the point estimates do not rule out the null hypothesis that `aOR = 1`. I've added a line at `OR = 1` for emphasis. Taking the confidence intervals into account, it looks that city-states don't start looking significantly biased against non-whites until Jacksonville.
