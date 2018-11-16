@@ -9,6 +9,9 @@ output: github_document
 
 ```{r lib-imports, message = FALSE, warning = FALSE }
 library(tidyverse)
+library(leaps)
+library(modelr)
+library(mgcv)
 
 knitr::opts_chunk$set(
   out.width = "90%"
@@ -19,7 +22,7 @@ theme_set(theme_classic() +
                   plot.title = element_text(hjust = 0.5)))
 ```
 
-Bringing in tidyverse to do the heavy lifting with data cleaning, analysis and plotting.
+Bringing in `tidyverse` to do the heavy lifting with data cleaning, analysis and plotting. `leaps` is included for a stepwise regression. `modelr` and `mgcv` are here for cross-validation and model comparison.
 
 # Problem 1
 
@@ -30,6 +33,8 @@ First, we need to bring in the data for analysis.
 ```{r homicide-data }
 homicides = read.csv(file = "./data/homicide-data.csv") 
 ```
+
+In its current form, `homicides` has`r nrow(homicides)` rows and `r ncol(homicides)` columns.
 
 Like in the last homework, we'll create a `city-state` variable to hold a more descriptive name for each city. We'll need to filter out some cities that don't report race and then alter some columns on the victim characteristics.
 
@@ -56,7 +61,6 @@ baltimore_glm = clean_homicides %>%
   glm(was_resolved ~ victim_age + victim_sex + victim_race, 
       data = ., family = binomial())
 ```
-
 
 With this model on hand, we can calculate the odds ratios needed for the problem.
 
@@ -114,3 +118,50 @@ ggplot(data = city_odds, aes(x = reorder(city_state, -OR), y = OR,
 With the exception of Tampa, Durham and Birmingham, most of the cities in the dataset have point estimates for adjusted odds ratios less than 1. In fact, the cities with the largest adjusted odds ratios seem to have the largest confidence intervals, suggestive of relatively small presence in `clean_homcides`. Any adjusted odds ratio under 1 implies that less homicides are solved for non-whites compared to whites.
 
 The odds ratios are sorted in descending order for easier visual comparison. The 95% confidence intervals show that not as many of the point estimates do not rule out the null hypothesis that `aOR = 1`. I've added a line at `OR = 1` for emphasis. Taking the confidence intervals into account, it looks that city-states don't start looking significantly biased against non-whites until Jacksonville.
+
+# Problem 2
+
+## Data Wrangling
+
+This dataset concerns child birthweight and various factors that contribute to its increase or decrease. 
+
+```{r birthweight-data }
+bwt = read_csv(file = "./data/birthweight.csv",
+                        col_types = "dddddddddddddddddddd") 
+```
+
+In its raw form, `bwt` has `r nrow(bwt)` rows and `r ncol(bwt)` columns. This dataset will be used for regression analysis, so we'll clean the data to make sure that each variable is in proper format. Numbers need to be numbers, and categories should be factors. 
+
+```{r cleaning-birthweights }
+clean_bwt = bwt %>% 
+  mutate(babysex = as.factor(ifelse(babysex == 1, "Male", "Female")),
+         frace = as.factor(frace),
+         malform = as.factor(ifelse(malform == 0, "Absent", "Present")),
+         mrace = as.factor(mrace)) %>% 
+  select(bwt, everything())
+```
+
+There are `r sum(sapply(clean_bwt, function(x)all(any(is.na(x)))))` columns with missing values, so we don't have to worry about missing data. 
+
+## Making my own model
+
+We are trying to using regression analyses to understand which factors are associated with `bwt` (child birthweight). With `r ncol(clean_bwt) - 1` available predictors, we need to pare down the covariates in such a way that leaves us with a good subset. 
+
+Before I can start, I need to consider multicollinearity within the data. Using `cor(bwt)`, I've found that `frace`-`mrace`, `ppwt-ppbmi` and `ppwt-blength` are highly correlated (>0.85), and thus should not be included with each other in the model.
+
+For this purpose, I'll first use stepwise regression to find a good starting point for my regression model. Then, I'll consider other factors included by the stepwise regression and further pare down the model to something reasonably parsimonious.
+
+```{r step-starter, echo = TRUE, results = 'hide' }
+saturated_model = lm(bwt ~ ., data = clean_bwt)
+step_regress = step(saturated_model, direction = 'both')
+```
+
+```{r step-model-table}
+knitr::kable(broom::tidy(step_regress))
+```
+
+The resulting stepwise regression results in a model with `r length(step_regress$coefficients)` coefficients. This model still seems too big to use effectively, we would prefer smaller models to stop ourselves from overfitting. The range of `bwt` ranges from hundreds to thousands, so I would suspect that covariates that don't contribute much can be safely removed. This would enable us to hone in on the greatest contributors to birthweight.
+
+With this in mind, we'll remove `delwt`, `fincome`, `mheight`, `ppwt`, `gaweeks` and `smoken` from the model. Thus, my final proposed model will include:
+
+
