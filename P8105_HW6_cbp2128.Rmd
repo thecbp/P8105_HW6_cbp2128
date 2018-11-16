@@ -196,3 +196,25 @@ From here, we can judge my model against some standard ones set forth by the pro
 
 ## Cross validation and other models
 
+The two models given are one using birth length and gestational age, and another using head circumference, birth length, sex and all interactions between these 3. We'll set up for the cross-validation by storing these models as funcitons to `map` over multiple training and test datasets. 
+
+```{r competitor-models }
+length_age_model = function(df) {
+  return(
+    lm(bwt ~ blength + gaweeks, data = df)
+  )
+}
+
+interactions_model = function(df) {
+  return(
+    lm(bwt ~ bhead + blength + babysex + 
+         bhead*blength + bhead*babysex + blength*babysex +
+         bhead*blength*babysex,
+       data = df)
+  )
+}
+```
+
+Now we can use `modelr` and `mgcv` to automate the cross-validation process and get a good representation of the relative merit of our 3 models. 
+
+
