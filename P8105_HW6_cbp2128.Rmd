@@ -192,7 +192,7 @@ clean_bwt %>%
   )
 ```
 
-From this vaguely fish-like graph, we can see that my model isn't great. Most residuals lie within a band ranging from -1000 to 1000, indicating some measure of normality of errors. There are about 5 babies that have residuals outside this band, suggesting that these children may be outliers. Unfortunately, my model also predicts that 3 children will have little to negative weight. 
+From this vaguely fish-like graph, we can see that my model isn't great. Most residuals lie within a band ranging from -1000 to 1000. However, the residuals do not form the desired horizontal band across the range of predicted values. Prior to 2500, we see that the residuals taper off towards 0, but there are also only a few values at these predictions. There are about 5 babies that have residuals outside this band, suggesting that these children may be outliers. Unfortunately, my model also predicts that 2 children will have little to negative weight. 
 
 From here, we can judge my model against some standard ones set forth by the problem. In order to compare them, we'll use cross-validation.
 
