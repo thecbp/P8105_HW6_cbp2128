@@ -68,12 +68,15 @@ With this model on hand, we can calculate the odds ratios needed for the problem
 
 ```{r odds-ratios }
 coeffs = broom::tidy(baltimore_glm) %>% 
-  mutate(OR = exp(estimate)) 
+  mutate(OR = exp(estimate),
+         conf.low = exp(estimate - std.error * 1.96),
+         conf.high = exp(estimate + std.error * 1.96)) %>% 
+  select(term, OR, conf.low, conf.high, p.value)
 
 knitr::kable(coeffs)
 ```
 
-From the table, we can see that homicide cases among non-whites are much less likely to be solved compared to cases among white people. The adjusted odds ratio is `r round(coeffs$OR[4], 3)` with a p-value of `r coeffs$p.value[4]`, indicating statistically significant difference on a 95% confidence level.
+From the table, we can see that homicide cases among non-whites are much less likely to be solved compared to cases among white people. The adjusted odds ratio is `r round(coeffs$OR[4], 3)` with a p-value of `r coeffs$p.value[4]`. The confidence interval for the adjusted odds ratio is from  `r round(coeffs$conf.low[4], 3)` to `r round(coeffs$conf.high[4], 3)`. These results indicate statistically significant difference on a 95% confidence level.
 
 ## All City Regression
 
